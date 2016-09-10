@@ -1217,6 +1217,10 @@ def main():
             synch_li.get()
             synch_li.task_done()
 
+            debuglock.acquire()
+            slow_collectors.pop(slow_collectors.index(self.account['num']))
+            debuglock.release()
+
             # ////////////////////
             while True:
                 location = addlocation.get()
@@ -1517,9 +1521,19 @@ def main():
     newthread.daemon = True
     newthread.start()
 
+    debuglock = threading.Lock()
+    slow_collectors = []
+    for i in range(0,threadnum):
+        slow_collectors.append(i)
+
+    lprint('starting login phase')
+
+    syncnum = 0
     if login_simu:
         for i in range(0, threadnum):
             synch_li.put(True)
+            syncnum += 1
+            lprint('{}/{} syncs put to queue'.format(syncnum,threadnum))
 
     for i in range(0, threadnum):
         newthread = collector(i, accounts[i])
@@ -1529,15 +1543,22 @@ def main():
         if not login_simu:
             while not synch_li.empty():
                 synch_li.put(True)
+                syncnum += 1
+                lprint('{}/{} syncs put to queue'.format(syncnum, threadnum))
+                lprint(slow_collectors)
                 time.sleep(1)
 
     if login_simu:
         while not synch_li.empty():
+            lprint('{} sync(s) stil on queue'.format(synch_li.qsize()))
+            lprint(slow_collectors)
             time.sleep(2)
 
     newthread = locgiver()
     newthread.daemon = True
     newthread.start()
+
+    lprint('locgiver started')
 
     while newthread.isAlive():
         newthread.join(5)
@@ -1546,6 +1567,8 @@ def main():
         newthread = smartlocgiver()
         newthread.daemon = True
         newthread.start()
+
+    lprint('smart locgiver started')
 
     while newthread.isAlive():
         newthread.join(5)
